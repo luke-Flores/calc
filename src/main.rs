@@ -15,15 +15,25 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-use std::fs;
 use std::env;
 use calc::basics::*;
 
 fn main() {
     let mut argv = env::args();
     let argc = argv.len();
+    argv.next();
 
     if argc == 1{
         mainscreen::ui();
+    }
+    else{
+        let mut input: String = String::new();
+        for arg in argv{
+            input.push_str(arg.as_str());
+            input.push(' ');
+        }
+        //algorithm adds an extra space this removes it
+        input.pop();
+        fundamentals::solve(input);
     }
 }
