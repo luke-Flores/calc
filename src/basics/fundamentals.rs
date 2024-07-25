@@ -16,6 +16,21 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::collections::HashMap;
+#[derive(Debug)]
+enum TokenId{
+    Num,
+    Operator,
+    Paranthese,
+    FunctionName,
+}
+
+#[derive(Debug)]
+struct Token{
+    id: TokenId,
+    value: String,
+}
+
 pub fn solve(mut input: String) -> f64{
     // remove spaces so that they don't cause pain
     input.retain(|c| c != ' ');
@@ -29,9 +44,15 @@ pub fn solve(mut input: String) -> f64{
     while let Some(letter) = chars.next(){
         match letter{
             '(' | '+' | '*' | '/' | '%' | '^' | '!' =>{
-                preprocessed_str.push(letter.to_string());
+                if preprocessed_str[preproclen] != ""{
+                    preprocessed_str.push(letter.to_string());
+                    preproclen+=1;
+                }
+                else{
+                    preprocessed_str[preproclen].push(letter);
+                }
                 preprocessed_str.push(String::new());
-                preproclen+=2;
+                preproclen+=1;
             },
             ')' => {
                 preprocessed_str.push(letter.to_string());
@@ -61,5 +82,48 @@ pub fn solve(mut input: String) -> f64{
         i+=1;
     }
     println!("{:?}", preprocessed_str);
+    //make a token stream for easier proccessing
+    let vars = HashMap::from([("e", "2.71828182845904523536028747135266250"),("pi", "3.14159265358979323846264338327950288")]);
+    let funcs: [String; 8] = ["sin".to_string(), "cos".to_string(), "tan".to_string(), "ceil".to_string(), "floor".to_string(), "sqrt".to_string(), "round".to_string(), "abs".to_string()];
+    let mut token_stream: Vec<Token> = Vec::new();
+    'tokenloop : for (i, item) in preprocessed_str.iter().enumerate(){
+        if item == "+" || item == "*" || item == "/" || item == "%" || item == "^" || item == "!"{
+            token_stream.push(Token{
+                id: TokenId::Operator,
+                value: preprocessed_str[i].to_string(),
+            });
+        }
+        else if item == "(" || item == ")"{
+            token_stream.push(Token{
+                id: TokenId::Paranthese,
+                value: preprocessed_str[i].to_string(),
+            });
+        }
+        else if item.parse::<f64>().is_ok(){
+            token_stream.push(Token{
+                id: TokenId::Num,
+                value: preprocessed_str[i].to_string(),
+            });
+        }
+        else if vars.contains_key(&item.as_str()){
+            token_stream.push(Token{
+                id: TokenId::Num,
+                value: vars[&item.as_str()].to_string(),
+            });
+        }
+        else {
+            for func in funcs.iter(){
+                if func == item{
+                    token_stream.push(Token{
+                        id: TokenId::FunctionName,
+                        value: preprocessed_str[i].to_string(),
+                    });
+                    continue 'tokenloop;
+                }
+            }
+            panic!("A part of the expression typed could not be indentified as a number, operator, or paranthese!");
+        }
+    }
+    println!("{:#?}", token_stream);
     return res;
 }
