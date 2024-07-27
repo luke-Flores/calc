@@ -34,6 +34,6 @@ fn main() {
         }
         //algorithm adds an extra space this removes it
         input.pop();
-        fundamentals::solve(input);
+        println!("{}", fundamentals::solve(input));
     }
 }
