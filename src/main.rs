@@ -34,6 +34,9 @@ fn main() {
         }
         //algorithm adds an extra space this removes it
         input.pop();
-        println!("{}", fundamentals::solve(input));
+        match fundamentals::solve(input){
+            Ok(n) => println!("{n}"),
+            Err(e) => eprintln!("{e}"),
+        }
     }
 }

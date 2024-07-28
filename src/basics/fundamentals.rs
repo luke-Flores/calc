@@ -79,9 +79,12 @@ fn preprocess(input: String, preprocessed_str: &mut Vec<String>){
         }
         i+=1;
     }
+    if preprocessed_str.last() == Some(&String::from("")){
+        preprocessed_str.pop();
+    }
 }
 
-fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>){
+fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Option<&'static str>{
     let vars = HashMap::from([("e", std::f64::consts::E),("pi", std::f64::consts::PI)]);
     let funcs: [String; 8] = ["sin".to_string(), "cos".to_string(), "tan".to_string(), "ceil".to_string(), "floor".to_string(), "sqrt".to_string(), "round".to_string(), "abs".to_string()];
     let mut func_count: Vec<usize> = Vec::new();
@@ -144,7 +147,7 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>){
                 }
             }
             else{
-                panic!("A closing paranthese appeared without a subsequent opening paranthese");
+                return Some("A closing paranthese appeared without a subsequent opening paranthese");
             }
         }
         else if item.parse::<f64>().is_ok(){
@@ -170,27 +173,28 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>){
                         num: 4.0,
                     });
                     if previously_func{
-                        panic!("A function name appeared without a following paranthese");
+                        return Some("A function name appeared without a following paranthese");
                     }
                     previously_func = true;
                     continue 'tokenloop;
                 }
             }
-            panic!("A part of the expression typed could not be indentified as a number, operator, or paranthese!");
+            return Some("A part of the expression typed could not be indentified as a number, operator, or paranthese!");
         }
         if previously_func{
-            panic!("A function name appeared without a following paranthese");
+            return Some("A function name appeared without a following paranthese");
         }
     }
     if previously_func{
-        panic!("A function name appeared without a following paranthese");
+        return Some("A function name appeared without a following paranthese");
     }
     else if paran_count != 0{
-        panic!("There are unclosed parantheses in the expression");
+        return Some("There are unclosed parantheses in the expression");
     }
+    return None
 }
 
-fn infix_to_postfix(token_stream: Vec<Token>, postfix_equation: &mut Vec<Token>){
+fn infix_to_postfix(token_stream: Vec<Token>, postfix_equation: &mut Vec<Token>) -> Option<&'static str>{
     let mut stack: Vec<Token> = Vec::new();
     for token in token_stream{
         match token.id{
@@ -199,7 +203,7 @@ fn infix_to_postfix(token_stream: Vec<Token>, postfix_equation: &mut Vec<Token>)
             TokenId::ClosedParanthese => {
                 'parantheseLoop : loop{
                     match stack.last(){
-                        None => panic!("A closed paranthese did not match an open paranthese"),
+                        None => return Some("A closed paranthese did not match an open paranthese"),
                         Some(n) => {
                             match n.id {
                                 TokenId::Openparanthese => break 'parantheseLoop,
@@ -227,9 +231,10 @@ fn infix_to_postfix(token_stream: Vec<Token>, postfix_equation: &mut Vec<Token>)
     while let Some(n) = stack.pop(){
         postfix_equation.push(n);
     }
+    return None;
 }
 
-fn evaluate(equation: Vec<Token>, result: &mut f64){
+fn evaluate(equation: Vec<Token>, result: &mut f64) -> Option<&'static str>{
     let mut stack: Vec<f64> = Vec::new();
     for token in equation{
         match token.id{
@@ -239,11 +244,11 @@ fn evaluate(equation: Vec<Token>, result: &mut f64){
                 //operands are switched so they come in the order expected
                 match stack.pop(){
                     Some(n) => val2 = n,
-                    None => panic!("Operator appeared without enough values"),
+                    None => return Some("Operator appeared without enough values"),
                 }
                 match stack.pop(){
                     Some(n) => val1 = n,
-                    None => panic!("Operator appeared without enough values"),
+                    None => return Some("Operator appeared without enough values"),
                 }
                 match token.value.as_str(){
                     "+" => stack.push(val1+val2),
@@ -261,21 +266,21 @@ fn evaluate(equation: Vec<Token>, result: &mut f64){
                     "round" => stack.push(val1.round()),
                     "sqrt" => stack.push(val1.sqrt()),
                     "abs" => stack.push(val1.abs()),
-                    _ => panic!("Somehow something that shouldn't be an operator or function got coded as one this is most likely a problem with the program"),
+                    _ => return Some("Somehow something that shouldn't be an operator or function got coded as one this is most likely a problem with the program"),
                 }
             },
             TokenId::Num => stack.push(token.num),
-            _ => panic!("Something went wrong in making the equation"),
+            _ => return Some("Something went wrong in making the equation"),
         }
     }
     match stack.pop(){
-        None => panic!("No value computed somehow"),
+        None => return Some("No value computed somehow"),
         Some(n) => *result = n,
     }
+    return None;
 }
 
-pub fn solve(mut input: String) -> f64{
-    let mut res: f64 = 0.0;
+pub fn solve(mut input: String) -> Result<f64, &'static str>{
     // remove spaces so that they don't cause pain
     input.retain(|c| c != ' ');
     let mut preprocessed_str: Vec<String> = Vec::new();
@@ -283,12 +288,25 @@ pub fn solve(mut input: String) -> f64{
 
     //make a token stream for easier proccessing
     let mut token_stream: Vec<Token> = Vec::new();
-    tokenize(preprocessed_str, &mut token_stream);
+    println!("{preprocessed_str:?}");
+    match tokenize(preprocessed_str, &mut token_stream){
+        None => (),
+        Some(n) => return Err(n),
+    }
 
     // convert expression to postfix
     let mut postfix_equation: Vec<Token> = Vec::new();
-    infix_to_postfix(token_stream, &mut postfix_equation);
+    match infix_to_postfix(token_stream, &mut postfix_equation){
+        None => (),
+        Some(n) => return Err(n),
+    }
 
-    evaluate(postfix_equation, &mut res);
-    return res;
+    //actually evaluate the expression
+    let mut res: f64 = 0.0;
+    match evaluate(postfix_equation, &mut res){
+        None => (),
+        Some(n) => return Err(n),
+    }
+
+    return Ok(res);
 }
