@@ -33,54 +33,21 @@ struct Token{
 }
 
 fn preprocess(input: String, preprocessed_str: &mut Vec<String>){
-    //preprocess the input string
-    let mut i: usize = 0;
-    let mut chars = input.chars();
-    let mut preproclen: usize = 0;
     preprocessed_str.push(String::new());
-    while let Some(letter) = chars.next(){
+    let mut tmp: String = String::new();
+    for letter in input.chars(){
         match letter{
-            '(' | '+' | '*' | '/' | '%' | '^' | ','=>{
-                if preprocessed_str[preproclen] != ""{
-                    preprocessed_str.push(letter.to_string());
-                    preproclen+=1;
-                }
-                else{
-                    preprocessed_str[preproclen].push(letter);
-                }
-                preprocessed_str.push(String::new());
-                preproclen+=1;
-            },
-            ')' => {
+            '(' | '+' | '*' | '/' | '%' | '^' | ',' | ')' | '-' =>{
+                preprocessed_str.push(tmp);
                 preprocessed_str.push(letter.to_string());
-                preproclen+=1;
-            }
-            '-' => {
-                if i > 0{
-                    let n = input.chars().nth(i-1).unwrap();
-                    //if the previous letter is a number then it is a minus sign or is a closing
-                    //paranthese
-                    if n.to_digit(10) != None || n == '.'  || n == ')'{
-                        preprocessed_str.push(letter.to_string());
-                        preprocessed_str.push(String::new());
-                        preproclen+=2;
-                    }
-                    else {
-                        preprocessed_str[preproclen].push(letter);
-                    }
-                }
-                else {
-                    preprocessed_str[preproclen].push(letter);
-                }
-
+                tmp = String::new()
             },
-            _ => preprocessed_str[preproclen].push(letter),
+            _ => tmp.push(letter),
         }
-        i+=1;
     }
-    if preprocessed_str.last() == Some(&String::from("")){
-        preprocessed_str.pop();
-    }
+    preprocessed_str.push(tmp);
+    //remove empty strings
+    preprocessed_str.retain(|s| s != "");
 }
 
 fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Option<&'static str>{
@@ -96,21 +63,40 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
     let mut previously_func = false;
     let mut previously_binfunc = false;
     let mut tmp: Vec<Token> = Vec::new();
+    let mut neg_num = false;
 
     for (i, item) in preprocessed_str.iter().enumerate(){
         if item.parse::<f64>().is_ok(){
-            token_stream.push(Token{
-                id: TokenId::Num,
-                value: preprocessed_str[i].to_string(),
-                num: item.parse::<f64>().unwrap(),
-            });
+            if neg_num{
+                token_stream.push(Token{
+                    id: TokenId::Num,
+                    value: preprocessed_str[i].to_string(),
+                    num: item.parse::<f64>().unwrap() * -1.0,
+                });
+            }
+            else {
+                token_stream.push(Token{
+                    id: TokenId::Num,
+                    value: preprocessed_str[i].to_string(),
+                    num: item.parse::<f64>().unwrap(),
+                });
+            }
         }
         else if vars.contains_key(&item.as_str()){
-            token_stream.push(Token{
-                id: TokenId::Num,
-                value: vars[&item.as_str()].to_string(),
-                num: vars[&item.as_str()]
-            });
+            if neg_num{
+                token_stream.push(Token{
+                    id: TokenId::Num,
+                    value: vars[&item.as_str()].to_string(),
+                    num: vars[&item.as_str()] * -1.0,
+                });
+            }
+            else {
+                token_stream.push(Token{
+                    id: TokenId::Num,
+                    value: vars[&item.as_str()].to_string(),
+                    num: vars[&item.as_str()],
+                });
+            }
         }
         else if funcs.contains(item){
             token_stream.push(Token{
@@ -132,12 +118,41 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
         }
         else {
             match item.as_str(){
-                "+" | "-" => {
+                "+"=> {
                     token_stream.push(Token{
                         id: TokenId::Operator,
-                        value: preprocessed_str[i].to_string(),
+                        value: String::from("+"),
                         num: 1.0,
                     });
+                }
+                "-" => {
+                    match token_stream.last(){
+                        None => {
+                            if previously_binfunc || previously_func{
+                                return Some("A function name appeared without a following paranthese");
+                            }
+                            neg_num = true;
+                            continue;
+                        }
+                        Some(n) => {
+                            match n.id{
+                                TokenId::Operator | TokenId::Openparanthese => {
+                                    if previously_binfunc || previously_func{
+                                        return Some("A function name appeared without a following paranthese");
+                                    }
+                                    neg_num = true;
+                                    continue;
+                                },
+                                TokenId::Num | TokenId::ClosedParanthese => {
+                                    token_stream.push(Token{
+                                        id: TokenId::Operator,
+                                        value: String::from("-"),
+                                        num: 1.0,
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
                 "*" | "/" | "%" => {
                     token_stream.push(Token{
@@ -218,6 +233,7 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
         if previously_func || previously_binfunc{
             return Some("A function name appeared without a following paranthese");
         }
+        neg_num = false;
     }
 
     if previously_func || previously_binfunc{
