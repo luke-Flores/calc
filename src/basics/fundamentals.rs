@@ -23,7 +23,6 @@ enum TokenId{
     Operator,
     Openparanthese,
     ClosedParanthese,
-    FunctionName,
 }
 
 #[derive(Debug)]
@@ -41,7 +40,7 @@ fn preprocess(input: String, preprocessed_str: &mut Vec<String>){
     preprocessed_str.push(String::new());
     while let Some(letter) = chars.next(){
         match letter{
-            '(' | '+' | '*' | '/' | '%' | '^' =>{
+            '(' | '+' | '*' | '/' | '%' | '^' | ','=>{
                 if preprocessed_str[preproclen] != ""{
                     preprocessed_str.push(letter.to_string());
                     preproclen+=1;
@@ -85,72 +84,21 @@ fn preprocess(input: String, preprocessed_str: &mut Vec<String>){
 }
 
 fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Option<&'static str>{
+    // Some predefined funtions or vars
     let vars = HashMap::from([("e", std::f64::consts::E),("pi", std::f64::consts::PI)]);
-    let funcs: [String; 8] = ["sin".to_string(), "cos".to_string(), "tan".to_string(), "ceil".to_string(), "floor".to_string(), "sqrt".to_string(), "round".to_string(), "abs".to_string()];
+    let funcs: [String; 9] = ["sin".to_string(), "cos".to_string(), "tan".to_string(), "ceil".to_string(), "floor".to_string(), "sqrt".to_string(), "round".to_string(), "abs".to_string(), "ln".to_string()];
+    let bin_funcs: [String; 2] = ["log".to_string(), "root".to_string()];
+
+    //variables to help keep track of stuff
     let mut func_count: Vec<usize> = Vec::new();
+    let mut binfunc_count: Vec<usize> = Vec::new();
     let mut paran_count = 0;
     let mut previously_func = false;
-    'tokenloop : for (i, item) in preprocessed_str.iter().enumerate(){
-        if item == "+" || item == "-"{
-            token_stream.push(Token{
-                id: TokenId::Operator,
-                value: preprocessed_str[i].to_string(),
-                num: 1.0,
-            });
-        }
-        else if item == "*" || item == "/" || item == "%"{
-            token_stream.push(Token{
-                id: TokenId::Operator,
-                value: preprocessed_str[i].to_string(),
-                num: 2.0,
-            });
-        }
-        else if item == "^" {
-           token_stream.push(Token{
-                id: TokenId::Operator,
-                value: String::from("^"),
-                num: 3.0,
-            });
-        }
-        else if item == "("{
-            token_stream.push(Token{
-                id: TokenId::Openparanthese,
-                value: String::from("("),
-                num: 0.0,
-            });
-            if previously_func{
-                func_count.push(paran_count);
-                previously_func = false;
-            }
-            paran_count+=1;
-        }
-        else if item == ")"{
-            token_stream.push(Token{
-                id: TokenId::ClosedParanthese,
-                value: String::from(")"),
-                num: 0.0,
-            });
-            if paran_count > 0 {
-                paran_count-=1;
-                'funcloop : for count in func_count.iter(){
-                    if *count == paran_count{
-                        //get around the lack of unary operator handeling in the infix to postfix
-                        //function
-                        token_stream.push(Token{
-                            id: TokenId::Num,
-                            value: String::from("0"),
-                            num: 0.0,
-                        });
-                        func_count.pop();
-                        break 'funcloop;
-                    }
-                }
-            }
-            else{
-                return Some("A closing paranthese appeared without a subsequent opening paranthese");
-            }
-        }
-        else if item.parse::<f64>().is_ok(){
+    let mut previously_binfunc = false;
+    let mut tmp: Vec<Token> = Vec::new();
+
+    for (i, item) in preprocessed_str.iter().enumerate(){
+        if item.parse::<f64>().is_ok(){
             token_stream.push(Token{
                 id: TokenId::Num,
                 value: preprocessed_str[i].to_string(),
@@ -164,28 +112,115 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                 num: vars[&item.as_str()]
             });
         }
+        else if funcs.contains(item){
+            token_stream.push(Token{
+                id: TokenId::Operator,
+                value: preprocessed_str[i].to_string(),
+                num: 4.0,
+            });
+            previously_func = true;
+            continue;
+        }
+        else if bin_funcs.contains(item){
+            tmp.push(Token{
+                id: TokenId::Operator,
+                value: preprocessed_str[i].to_string(),
+                num: 4.0,
+            });
+            previously_binfunc=true;
+            continue;
+        }
         else {
-            for func in funcs.iter(){
-                if func == item{
+            match item.as_str(){
+                "+" | "-" => {
                     token_stream.push(Token{
-                        id: TokenId::FunctionName,
+                        id: TokenId::Operator,
                         value: preprocessed_str[i].to_string(),
-                        num: 4.0,
+                        num: 1.0,
+                    });
+                }
+                "*" | "/" | "%" => {
+                    token_stream.push(Token{
+                        id: TokenId::Operator,
+                        value: preprocessed_str[i].to_string(),
+                        num: 2.0,
+                    });
+                }
+                "^" => {
+                    token_stream.push(Token{
+                        id: TokenId::Operator,
+                        value: String::from("^"),
+                        num: 3.0,
+                    });
+                }
+                "(" => {
+                    token_stream.push(Token{
+                        id: TokenId::Openparanthese,
+                        value: String::from("("),
+                        num: 0.0,
                     });
                     if previously_func{
-                        return Some("A function name appeared without a following paranthese");
+                        func_count.push(paran_count);
+                        previously_func = false;
                     }
-                    previously_func = true;
-                    continue 'tokenloop;
+                    else if previously_binfunc{
+                        binfunc_count.push(paran_count+1);
+                        previously_binfunc = false;
+                    }
+                    paran_count+=1;
                 }
+                ")" => {
+                    token_stream.push(Token{
+                        id: TokenId::ClosedParanthese,
+                        value: String::from(")"),
+                        num: 0.0,
+                    });
+                    if paran_count > 0 {
+                        paran_count-=1;
+                        if func_count.contains(&paran_count){
+                            //get around the lack of unary operator handeling in the infix to postfix
+                            //function
+                            token_stream.push(Token{
+                                id: TokenId::Num,
+                                value: String::from("0"),
+                                num: 0.0,
+                            });
+                            func_count.pop();
+                        }
+                    }
+                    else{
+                        return Some("A closing paranthese appeared without a subsequent opening paranthese");
+                    }
+                }
+                "," => {
+                    if binfunc_count.last() == Some(&paran_count){
+                        //the paranthese are so that the value of the parameters get evualuated before the function is evaluated
+                        token_stream.push(Token{
+                            id: TokenId::ClosedParanthese,
+                            value: String::from(")"),
+                            num: 0.0,
+                        });
+                        token_stream.push(tmp.pop().unwrap());
+                        token_stream.push(Token{
+                            id: TokenId::Openparanthese,
+                            value: String::from("("),
+                            num: 0.0,
+                        });
+                        binfunc_count.pop();
+                    }
+                    else {
+                        return Some("A comma appeared outside of(or nested within a lower paranthese level) a function that accepts two parameters");
+                    }
+                }
+                _ => return Some("A part of the expression typed could not be indentified as a number, operator, or paranthese!"),
             }
-            return Some("A part of the expression typed could not be indentified as a number, operator, or paranthese!");
         }
-        if previously_func{
+        if previously_func || previously_binfunc{
             return Some("A function name appeared without a following paranthese");
         }
     }
-    if previously_func{
+
+    if previously_func || previously_binfunc{
         return Some("A function name appeared without a following paranthese");
     }
     else if paran_count != 0{
@@ -214,7 +249,7 @@ fn infix_to_postfix(token_stream: Vec<Token>, postfix_equation: &mut Vec<Token>)
                 }
                 stack.pop();
             }
-            TokenId::Operator | TokenId::FunctionName=> {
+            TokenId::Operator=> {
                 'stackLoop : while stack.len() != 0{
                     //unwrap operation can be assumed since length is not 0
                     if token.num <= stack.last().unwrap().num{
@@ -238,7 +273,7 @@ fn evaluate(equation: Vec<Token>, result: &mut f64) -> Option<&'static str>{
     let mut stack: Vec<f64> = Vec::new();
     for token in equation{
         match token.id{
-            TokenId::Operator | TokenId::FunctionName => {
+            TokenId::Operator => {
                 let val1;
                 let val2;
                 //operands are switched so they come in the order expected
@@ -257,6 +292,9 @@ fn evaluate(equation: Vec<Token>, result: &mut f64) -> Option<&'static str>{
                     "/" => stack.push(val1/val2),
                     "%" => stack.push(val1%val2),
                     "^" => stack.push(val1.powf(val2)),
+                    "log" => stack.push(val2.log(val1)),
+                    // a^(1/b) is equal to the bth root of a
+                    "root" => stack.push(val2.powf(1.0/val1)),
                     //all of these ignore val2
                     "sin" => stack.push(val1.sin()),
                     "cos" => stack.push(val1.cos()),
@@ -266,6 +304,7 @@ fn evaluate(equation: Vec<Token>, result: &mut f64) -> Option<&'static str>{
                     "round" => stack.push(val1.round()),
                     "sqrt" => stack.push(val1.sqrt()),
                     "abs" => stack.push(val1.abs()),
+                    "ln" => stack.push(val1.ln()),
                     _ => return Some("Somehow something that shouldn't be an operator or function got coded as one this is most likely a problem with the program"),
                 }
             },
@@ -288,7 +327,6 @@ pub fn solve(mut input: String) -> Result<f64, &'static str>{
 
     //make a token stream for easier proccessing
     let mut token_stream: Vec<Token> = Vec::new();
-    println!("{preprocessed_str:?}");
     match tokenize(preprocessed_str, &mut token_stream){
         None => (),
         Some(n) => return Err(n),
