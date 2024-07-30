@@ -61,7 +61,6 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
     let mut binfunc_count: Vec<usize> = Vec::new();
     let mut paran_count = 0;
     let mut tmp: Vec<Token> = Vec::new();
-    let mut neg_num = false;
     let mut skip = false;
 
     for (i, item) in preprocessed_str.iter().enumerate(){
@@ -70,36 +69,18 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
             continue;
         }
         else if item.parse::<f64>().is_ok(){
-            if neg_num{
-                token_stream.push(Token{
-                    id: TokenId::Num,
-                    value: preprocessed_str[i].to_string(),
-                    num: item.parse::<f64>().unwrap() * -1.0,
-                });
-            }
-            else {
-                token_stream.push(Token{
-                    id: TokenId::Num,
-                    value: preprocessed_str[i].to_string(),
-                    num: item.parse::<f64>().unwrap(),
-                });
-            }
+            token_stream.push(Token{
+                id: TokenId::Num,
+                value: preprocessed_str[i].to_string(),
+                num: item.parse::<f64>().unwrap(),
+            });
         }
         else if vars.contains_key(&item.as_str()){
-            if neg_num{
-                token_stream.push(Token{
-                    id: TokenId::Num,
-                    value: vars[&item.as_str()].to_string(),
-                    num: vars[&item.as_str()] * -1.0,
-                });
-            }
-            else {
-                token_stream.push(Token{
-                    id: TokenId::Num,
-                    value: vars[&item.as_str()].to_string(),
-                    num: vars[&item.as_str()],
-                });
-            }
+            token_stream.push(Token{
+                id: TokenId::Num,
+                value: vars[&item.as_str()].to_string(),
+                num: vars[&item.as_str()],
+            });
         }
         else if funcs.contains(item){
             token_stream.push(Token{
@@ -150,13 +131,30 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                 "-" => {
                     match token_stream.last(){
                         None => {
-                            neg_num = true;
-                            continue;
+                            token_stream.push(Token{
+                                id: TokenId::Num,
+                                value: String::from("-1"),
+                                num: -1.0,
+                            });
+                            token_stream.push(Token{
+                                id: TokenId::Operator,
+                                value: String::from("*"),
+                                num: 2.0,
+                            });
                         }
                         Some(n) => {
                             match n.id{
                                 TokenId::Operator | TokenId::OpenParanthese => {
-                                    neg_num = true;
+                                    token_stream.push(Token{
+                                        id: TokenId::Num,
+                                        value: String::from("-1"),
+                                        num: -1.0,
+                                    });
+                                    token_stream.push(Token{
+                                        id: TokenId::Operator,
+                                        value: String::from("*"),
+                                        num: 2.0,
+                                    });
                                     continue;
                                 },
                                 TokenId::Num | TokenId::ClosedParanthese => {
@@ -240,7 +238,6 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                 _ => return Some("A part of the expression typed could not be indentified as a number, operator, or paranthese!"),
             }
         }
-        neg_num = false;
     }
     if paran_count != 0{
         return Some("There are unclosed parantheses");
