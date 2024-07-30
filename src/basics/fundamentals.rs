@@ -21,7 +21,7 @@ use std::collections::HashMap;
 enum TokenId{
     Num,
     Operator,
-    Openparanthese,
+    OpenParanthese,
     ClosedParanthese,
 }
 
@@ -60,13 +60,16 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
     let mut func_count: Vec<usize> = Vec::new();
     let mut binfunc_count: Vec<usize> = Vec::new();
     let mut paran_count = 0;
-    let mut previously_func = false;
-    let mut previously_binfunc = false;
     let mut tmp: Vec<Token> = Vec::new();
     let mut neg_num = false;
+    let mut skip = false;
 
     for (i, item) in preprocessed_str.iter().enumerate(){
-        if item.parse::<f64>().is_ok(){
+        if skip{
+            skip = false;
+            continue;
+        }
+        else if item.parse::<f64>().is_ok(){
             if neg_num{
                 token_stream.push(Token{
                     id: TokenId::Num,
@@ -104,8 +107,16 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                 value: preprocessed_str[i].to_string(),
                 num: 4.0,
             });
-            previously_func = true;
-            continue;
+            if preprocessed_str.get(i+1) == Some(&"(".to_string()){
+                token_stream.push(Token{
+                    id: TokenId::OpenParanthese,
+                    value: String::from("("),
+                    num: 0.0,
+                });
+                func_count.push(paran_count);
+                paran_count+=1;
+                skip = true;
+            }
         }
         else if bin_funcs.contains(item){
             tmp.push(Token{
@@ -113,8 +124,19 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                 value: preprocessed_str[i].to_string(),
                 num: 4.0,
             });
-            previously_binfunc=true;
-            continue;
+            if preprocessed_str.get(i+1) == Some(&"(".to_string()){
+                token_stream.push(Token{
+                    id: TokenId::OpenParanthese,
+                    value: String::from("("),
+                    num: 0.0,
+                });
+                paran_count+=1;
+                binfunc_count.push(paran_count);
+                skip = true;
+            }
+            else{
+                return Some("A function name appeared without a following paranthese");
+            }
         }
         else {
             match item.as_str(){
@@ -128,18 +150,12 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                 "-" => {
                     match token_stream.last(){
                         None => {
-                            if previously_binfunc || previously_func{
-                                return Some("A function name appeared without a following paranthese");
-                            }
                             neg_num = true;
                             continue;
                         }
                         Some(n) => {
                             match n.id{
-                                TokenId::Operator | TokenId::Openparanthese => {
-                                    if previously_binfunc || previously_func{
-                                        return Some("A function name appeared without a following paranthese");
-                                    }
+                                TokenId::Operator | TokenId::OpenParanthese => {
                                     neg_num = true;
                                     continue;
                                 },
@@ -170,18 +186,10 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                 }
                 "(" => {
                     token_stream.push(Token{
-                        id: TokenId::Openparanthese,
+                        id: TokenId::OpenParanthese,
                         value: String::from("("),
                         num: 0.0,
                     });
-                    if previously_func{
-                        func_count.push(paran_count);
-                        previously_func = false;
-                    }
-                    else if previously_binfunc{
-                        binfunc_count.push(paran_count+1);
-                        previously_binfunc = false;
-                    }
                     paran_count+=1;
                 }
                 ")" => {
@@ -190,11 +198,10 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                         value: String::from(")"),
                         num: 0.0,
                     });
+                    //get around the lack of unary operator handeling in the infix to postfix function
                     if paran_count > 0 {
                         paran_count-=1;
                         if func_count.contains(&paran_count){
-                            //get around the lack of unary operator handeling in the infix to postfix
-                            //function
                             token_stream.push(Token{
                                 id: TokenId::Num,
                                 value: String::from("0"),
@@ -205,6 +212,9 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                     }
                     else{
                         return Some("A closing paranthese appeared without a subsequent opening paranthese");
+                    }
+                    if binfunc_count.last() != None && binfunc_count.last() != Some(&paran_count){
+                        return Some("A closing paranthese appeared before a comma could appear in a multi parameter function");
                     }
                 }
                 "," => {
@@ -217,7 +227,7 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                         });
                         token_stream.push(tmp.pop().unwrap());
                         token_stream.push(Token{
-                            id: TokenId::Openparanthese,
+                            id: TokenId::OpenParanthese,
                             value: String::from("("),
                             num: 0.0,
                         });
@@ -230,17 +240,10 @@ fn tokenize(preprocessed_str: Vec<String>, token_stream: &mut Vec<Token>) -> Opt
                 _ => return Some("A part of the expression typed could not be indentified as a number, operator, or paranthese!"),
             }
         }
-        if previously_func || previously_binfunc{
-            return Some("A function name appeared without a following paranthese");
-        }
         neg_num = false;
     }
-
-    if previously_func || previously_binfunc{
-        return Some("A function name appeared without a following paranthese");
-    }
-    else if paran_count != 0{
-        return Some("There are unclosed parantheses in the expression");
+    if paran_count != 0{
+        return Some("There are unclosed parantheses");
     }
     return None
 }
@@ -250,14 +253,14 @@ fn infix_to_postfix(token_stream: Vec<Token>, postfix_equation: &mut Vec<Token>)
     for token in token_stream{
         match token.id{
             TokenId::Num => postfix_equation.push(token),
-            TokenId::Openparanthese => stack.push(token),
+            TokenId::OpenParanthese => stack.push(token),
             TokenId::ClosedParanthese => {
                 'parantheseLoop : loop{
                     match stack.last(){
                         None => return Some("A closed paranthese did not match an open paranthese"),
                         Some(n) => {
                             match n.id {
-                                TokenId::Openparanthese => break 'parantheseLoop,
+                                TokenId::OpenParanthese => break 'parantheseLoop,
                                 _ => postfix_equation.push(stack.pop().unwrap()),
                             }
                         },
@@ -361,6 +364,5 @@ pub fn solve(mut input: String) -> Result<f64, &'static str>{
         None => (),
         Some(n) => return Err(n),
     }
-
     return Ok(res);
 }
