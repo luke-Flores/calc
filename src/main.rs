@@ -17,11 +17,13 @@
 */
 use std::env;
 use calc::basics::*;
+use calc::modules::*;
 
 fn printhelp(){
     println!("Terminal based calculator");
     println!("Options(based on input arguments): ");
     println!("\t --help, prints this message");
+    println!("\t --calc, enters into the text input calculator");
     println!("\t a math expression, solves it and prints the result");
     println!("\t no arguments, enters the mainscreen ui");
     println!("The program uses standard pemdas to evaluate expressions, modulus is same priority as multiplication and division");
@@ -44,6 +46,9 @@ fn main() {
         let args: Vec<String> = argv.collect();
         if args[0] == "--help"{
             printhelp();
+        }
+        else if args[0] == "--calc"{
+            text::textcalc();
         }
         else {
             let mut input: String = String::new();

@@ -35,25 +35,29 @@ pub fn ui(){
     mainscreen.print_list();
     refresh();
 
-    loop{
+    'inploop : loop{
         let option = mainscreen.getchar();
         match option{
             KEY_DOWN => mainscreen.change_hl(mainscreen.highligh_num+1),
             KEY_UP => mainscreen.change_hl(mainscreen.highligh_num-1),
             //q
-            113 => break,
+            113 => break 'inploop,
             10 => { //enter
                 match mainscreen.highligh_num{
-                    0 => todo!(),
+                    //calc
+                    0 => {
+                        endwin();
+                        crate::modules::text::textcalc();
+                        initscr();
+                    },
                     1 => todo!(),
                     _ => panic!("Somehow highlighted item was not an actual item present"),
                 }
             },
             _ => (),
         }
+        mainscreen.print_list();
     }
-
-
     mainscreen.delete();
     endwin();
 }

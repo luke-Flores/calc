@@ -15,5 +15,24 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-pub mod basics;
-pub mod modules;
+use std::io::Write;
+
+pub fn textcalc(){
+    println!("Type math expressions. Type \"exit\" to return to the main menu");
+    loop {
+        let mut input = String::new();
+        print!(">>> ");
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stdin().read_line(&mut input);
+        input.pop();
+
+        if input.get(0..4) == Some(&"exit"){
+            break;
+        }
+        let res = crate::basics::fundamentals::solve(input);
+        match res{
+            Err(e) => println!("There was a problem: {e}"),
+            Ok(n) => println!("{n}"),
+        }
+    }
+}
