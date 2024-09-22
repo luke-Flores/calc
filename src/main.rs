@@ -39,6 +39,8 @@ fn main() {
     let argc = argv.len();
     argv.next();
 
+
+
     if argc == 1{
         mainscreen::ui();
     }
@@ -49,6 +51,9 @@ fn main() {
         }
         else if args[0] == "--calc"{
             text::textcalc();
+        }
+        else if args[0] == "--mem"{
+            //mem::mem();
         }
         else {
             let mut input: String = String::new();

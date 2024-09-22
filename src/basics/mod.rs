@@ -18,3 +18,4 @@
 pub mod fundamentals;
 pub mod mainscreen;
 pub mod menu;
+pub mod functions;
